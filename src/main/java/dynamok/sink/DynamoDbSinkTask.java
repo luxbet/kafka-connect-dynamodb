@@ -27,6 +27,9 @@ import com.amazonaws.services.dynamodbv2.model.LimitExceededException;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import com.newrelic.api.agent.NewRelic;
+import com.newrelic.api.agent.Trace;
+
 import dynamok.Version;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
@@ -90,6 +93,7 @@ public class DynamoDbSinkTask extends SinkTask {
     }
 
     @Override
+    @Trace (metricName="PUBLISH_TO_DYNAMODB", dispatcher=true)
     public void put(Collection<SinkRecord> records) {
         if (records.isEmpty()) return;
 
@@ -111,10 +115,12 @@ public class DynamoDbSinkTask extends SinkTask {
         } catch (LimitExceededException | ProvisionedThroughputExceededException e) {
             log.debug("Write failed with Limit/Throughput Exceeded exception; backing off");
             context.timeout(config.retryBackoffMs);
+            NewRelic.noticeError("Write failed with Limit/Throughput Exceeded exception; backing off",false);
             throw new RetriableException(e);
         } catch (AmazonDynamoDBException | UnprocessedItemsException e) {
             log.warn("Write failed, remainingRetries={}", 0, remainingRetries, e);
             if (remainingRetries == 0) {
+            	NewRelic.noticeError("Write failed with exception " + e.getMessage(),false);
                 throw new ConnectException(e);
             } else {
                 remainingRetries--;
