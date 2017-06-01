@@ -98,9 +98,12 @@ public class DynamoDbSinkTask extends SinkTask {
         if (records.isEmpty()) return;
 
         try {
+            log.info("LPDEBUG {} records", records.size());
             if (records.size() == 1 || config.batchSize == 1) {
                 for (final SinkRecord record : records) {
-                    client.putItem(tableName(record), toPutRequest(record).getItem());
+                    final String tableName = tableName(record);
+                    log.info("LPDEBUG 1 tableName {}", tableName);
+                    client.putItem(tableName, toPutRequest(record).getItem());
                 }
             } else {
                 final Iterator<SinkRecord> recordIterator = records.iterator();
@@ -137,7 +140,9 @@ public class DynamoDbSinkTask extends SinkTask {
         for (int count = 0; recordIterator.hasNext() && count < config.batchSize; count++) {
             final SinkRecord record = recordIterator.next();
             final WriteRequest writeRequest = new WriteRequest(toPutRequest(record));
-            writesByTable.computeIfAbsent(tableName(record), k -> new ArrayList<>(config.batchSize)).add(writeRequest);
+            final String tableName = tableName(record);
+            log.info("LPDEBUG n tableName {}", tableName);
+            writesByTable.computeIfAbsent(tableName, k -> new ArrayList<>(config.batchSize)).add(writeRequest);
         }
         return writesByTable;
     }
@@ -145,12 +150,19 @@ public class DynamoDbSinkTask extends SinkTask {
     private PutRequest toPutRequest(SinkRecord record) {
         final PutRequest put = new PutRequest();
         if (!config.ignoreRecordValue) {
-            insert(ValueSource.RECORD_VALUE, record.valueSchema(), record.value(), put);
+            final Schema schema = record.valueSchema();
+            final Object key = record.key();
+            log.info("LPDEBUG insert value schema {} {} {}", schema, key.getClass().getCanonicalName(), key);
+            insert(ValueSource.RECORD_VALUE, schema, record.value(), put);
         }
         if (!config.ignoreRecordKey) {
-            insert(ValueSource.RECORD_KEY, record.keySchema(), record.key(), put);
+            final Schema schema = record.keySchema();
+            final Object key = record.key();
+            log.info("LPDEBUG insert key schema {} {} {}", schema, key.getClass().getCanonicalName(), key);
+            insert(ValueSource.RECORD_KEY, schema, key, put);
         }
         if (config.kafkaCoordinateNames != null) {
+            log.info("LPDEBUG insert config.kafkaCoordinateNames {}", config.kafkaCoordinateNames);
             put.addItemEntry(config.kafkaCoordinateNames.topic, new AttributeValue().withS(record.topic()));
             put.addItemEntry(config.kafkaCoordinateNames.partition, new AttributeValue().withN(String.valueOf(record.kafkaPartition())));
             put.addItemEntry(config.kafkaCoordinateNames.offset, new AttributeValue().withN(String.valueOf(record.kafkaOffset())));
