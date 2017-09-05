@@ -181,6 +181,13 @@ public class DynamoDbSinkTask extends SinkTask {
             throw e;
         }
 
+        log.info("ARUN -> " +  attributeValue.getM().keySet());
+
+        if(attributeValue!=null && attributeValue.getM()!=null && attributeValue.getM().containsKey("markets") ){
+            log.info("DAVIDE -> " + attributeValue.getM().keySet());
+        }
+
+
         final String topAttributeName = valueSource.topAttributeName(config);
         if (!topAttributeName.isEmpty()) {
             put.addItemEntry(topAttributeName, attributeValue);
